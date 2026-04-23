@@ -255,7 +255,7 @@
 		var dir = serpentine ? -1 : 1;
 
 		// Keep track of transparent pixels
-		transparentPixels = []
+		var transparentPixels = []
 		for (var x=0; x < buf32.length; x++){
 			if(buf32[x] == 0) {
 				transparentPixels.push(x)
