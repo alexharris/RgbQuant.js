@@ -254,6 +254,11 @@
 
 		var dir = serpentine ? -1 : 1;
 
+		// Float error accumulation buffers — avoids clamping bias from writing back to uint8 pixel buffer
+		var errR = new Float64Array(len),
+		    errG = new Float64Array(len),
+		    errB = new Float64Array(len);
+
 		// Keep track of transparent pixels
 		var transparentPixels = []
 		for (var x=0; x < buf32.length; x++){
@@ -269,15 +274,18 @@
 			var lni = y * width;
 
 			for (var x = (dir == 1 ? 0 : width - 1), xend = (dir == 1 ? width : 0); x !== xend; x += dir) {
-				// Image pixel
+				// Image pixel (add accumulated float error before clamping)
 				var idx = lni + x,
 					i32 = buf32[idx],
-					r1 = (i32 & 0xff),
-					g1 = (i32 & 0xff00) >> 8,
-					b1 = (i32 & 0xff0000) >> 16;
+					r1r = (i32 & 0xff) + errR[idx],
+					g1r = ((i32 & 0xff00) >> 8) + errG[idx],
+					b1r = ((i32 & 0xff0000) >> 16) + errB[idx],
+					r1 = Math.max(0, Math.min(255, Math.round(r1r))),
+					g1 = Math.max(0, Math.min(255, Math.round(g1r))),
+					b1 = Math.max(0, Math.min(255, Math.round(b1r)));
 
 				// Reduced pixel
-				var i32x = this.nearestColor(i32),
+				var i32x = this.nearestColor((255 << 24) | (b1 << 16) | (g1 << 8) | r1),
 					r2 = (i32x & 0xff),
 					g2 = (i32x & 0xff00) >> 8,
 					b2 = (i32x & 0xff0000) >> 16;
@@ -295,10 +303,10 @@
 						continue;
 				}
 
-				// Component distance
-				var er = r1 - r2,
-					eg = g1 - g2,
-					eb = b1 - b2;
+				// Component distance (use unclamped raw values to preserve overflow)
+				var er = r1r - r2,
+					eg = g1r - g2,
+					eb = b1r - b2;
 
 				for (var i = (dir == 1 ? 0 : ds.length - 1), end = (dir == 1 ? ds.length : 0); i !== end; i += dir) {
 					var x1 = ds[i][1] * dir,
@@ -310,19 +318,10 @@
 						var d = ds[i][0];
 						var idx2 = idx + (lni2 + x1);
 
-						var r3 = (buf32[idx2] & 0xff),
-							g3 = (buf32[idx2] & 0xff00) >> 8,
-							b3 = (buf32[idx2] & 0xff0000) >> 16;
-
-						var r4 = Math.max(0, Math.min(255, r3 + er * d)),
-							g4 = Math.max(0, Math.min(255, g3 + eg * d)),
-							b4 = Math.max(0, Math.min(255, b3 + eb * d));
-
-						buf32[idx2] =
-							(255 << 24)	|	// alpha
-							(b4  << 16)	|	// blue
-							(g4  <<  8)	|	// green
-							 r4;			// red
+						// Accumulate error into float buffers (no clamping — preserves overflow)
+						errR[idx2] += er * d;
+						errG[idx2] += eg * d;
+						errB[idx2] += eb * d;
 					}
 				}
 			}
