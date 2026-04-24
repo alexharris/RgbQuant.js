@@ -115,6 +115,13 @@ fs.readFile(imgPath, function(err, data) {
 \* Transparent pixels will result in a sparse indexed array.
 
 ---
+### Changes (this fork)
+
+- **Transparency preservation** — Transparent pixels in PNG images are tracked before dithering and restored afterward, preventing them from being filled with opaque color.
+- **Float error diffusion** — Dithering now accumulates quantization errors in `Float64Array` buffers instead of writing back into the `uint8` pixel buffer. This prevents clamping from silently discarding overflow, which previously biased bright/white backgrounds toward darker output.
+- **Fixed implicit global** — `transparentPixels` was declared without `var`, leaking into global scope.
+
+---
 ### Caveats & Tips
 
 RgbQuant.js, as any quantizer, makes trade-offs which affect its performance in certain cases. Some parameters may be tweaked to improve the quality of the output at the expense of palette computation and reduction speed. Since the methods used to determine the palette are based on occurrence counts of each pixel's color, three problematic situations can arise.
